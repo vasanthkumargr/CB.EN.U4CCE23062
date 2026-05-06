@@ -9,7 +9,7 @@
 GET /api/notifications
 Headers: Authorization: Bearer <token>
 Query Params: limit, page, notification_type
-Response: { notifications: [...] }
+Response: { notifications: [] }
 ```
 
 #### Mark Notification as Read
@@ -38,7 +38,7 @@ SSE is chosen over WebSockets because notifications are one-directional
 
 ### Database Choice: PostgreSQL
 Chosen because:
-- ACID compliant — no data loss on crashes
+- ACID compliant ,no data loss on crashes
 - Supports indexing for fast queries on large datasets
 - JSON support for flexible message formats
 - Strong community and production proven
@@ -62,14 +62,14 @@ ON notifications(student_id, is_read, created_at DESC);
 
 ### Problems at Scale & Solutions
 - **50,000 students x millions of notifications** → Table gets huge
-- Solution 1: Pagination — never fetch all at once
-- Solution 2: Index on (student_id, is_read) — fast per-student queries
+- Solution 1: Pagination, never fetch all at once
+- Solution 2: Index on (student_id, is_read)  fast per-student queries
 - Solution 3: Archive old notifications (older than 6 months) to separate table
-- Solution 4: Read replicas — writes go to primary DB, reads from replica
+- Solution 4: Read replicas , writes go to primary DB, reads from replica
 
 ## Stage 3
 
-the query looks correct to me. but it's slow bcz there's no index on the columns being filtered. with 5 million rows the db has to scan every single row to find matches for studentId=1042 — thats a full table scan which is obv gonna be slow.
+the query looks correct to me. but it's slow bcz there's no index on the columns being filtered. with 5 million rows the db has to scan every single row to find matches for studentId=1042 ,thats a full table scan which is obv gonna be slow.
 
 to fix this we can add a composite index:
 
@@ -163,4 +163,59 @@ so a placement notif from 1hr ago scores higher than an event from 10mins ago bc
 
 for keeping top 10 updated as new notifs come in — instead of re-sorting the entire list every time, we can use a min-heap of size n. when a new notif arrives we compute its score and compare with the smallest score in the heap. if its higher we replace the min and re-heapify. this keeps it O(log n) per insertion instead of O(n log n) full sort each time.
 
+priority.js code
+require('dotenv').config();
+const axios = require('axios');
+const { log } = require('../logging_middleware');
+
+const AUTH_TOKEN = process.env.AUTH_TOKEN;
+const TEST_SERVER_URL = process.env.TS_URL;
+
+const weights = {
+  Placement: 3,
+  Result: 2,
+  Event: 1
+};
+
+async function getTopNotifications(n = 10) {
+  await log("backend", "info", "service", "fetching notifications for priority inbox");
+
+  try {
+    const res = await axios.get(`${TEST_SERVER_URL}/notifications`, {
+      headers: { Authorization: `Bearer ${AUTH_TOKEN}` }
+    });
+
+    const notifs = res.data.notifications;
+    await log("backend", "info", "service", `got ${notifs.length} notifications from api`);
+
+    const now = new Date();
+
+    const scored = notifs.map(n => {
+      const w = weights[n.Type] ?? 1;
+      const hoursAgo = (now - new Date(n.Timestamp)) / (1000 * 60 * 60);
+      const score = w * (1 / (hoursAgo + 0.01));
+      return { ...n, score: parseFloat(score.toFixed(4)) };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    const top = scored.slice(0, n);
+
+    await log("backend", "info", "service", `top ${n} notifications computed successfully`);
+
+    console.log(`\ntop ${n} priority Notifications\n`);
+    top.forEach((item, i) => {
+      console.log(`${i + 1}. [${item.Type}] ${item.Message}`);
+      console.log(`   Score: ${item.score} | Time: ${item.Timestamp}\n`);
+    });
+
+    return top;
+
+  } catch (err) {
+    await log("backend", "error", "service", `failed to compute priority inbox: ${err.message}`);
+    console.error("error:", err.message);
+  }
+}
+
+getTopNotifications(10);
 code is in notification_app_be/priority.js, output screenshot in notification_app_be/priority_output.png
