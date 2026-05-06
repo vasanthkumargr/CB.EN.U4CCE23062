@@ -163,59 +163,6 @@ so a placement notif from 1hr ago scores higher than an event from 10mins ago bc
 
 for keeping top 10 updated as new notifs come in — instead of re-sorting the entire list every time, we can use a min-heap of size n. when a new notif arrives we compute its score and compare with the smallest score in the heap. if its higher we replace the min and re-heapify. this keeps it O(log n) per insertion instead of O(n log n) full sort each time.
 
-priority.js code
-require('dotenv').config();
-const axios = require('axios');
-const { log } = require('../logging_middleware');
-
-const AUTH_TOKEN = process.env.AUTH_TOKEN;
-const TEST_SERVER_URL = process.env.TS_URL;
-
-const weights = {
-  Placement: 3,
-  Result: 2,
-  Event: 1
-};
-
-async function getTopNotifications(n = 10) {
-  await log("backend", "info", "service", "fetching notifications for priority inbox");
-
-  try {
-    const res = await axios.get(`${TEST_SERVER_URL}/notifications`, {
-      headers: { Authorization: `Bearer ${AUTH_TOKEN}` }
-    });
-
-    const notifs = res.data.notifications;
-    await log("backend", "info", "service", `got ${notifs.length} notifications from api`);
-
-    const now = new Date();
-
-    const scored = notifs.map(n => {
-      const w = weights[n.Type] ?? 1;
-      const hoursAgo = (now - new Date(n.Timestamp)) / (1000 * 60 * 60);
-      const score = w * (1 / (hoursAgo + 0.01));
-      return { ...n, score: parseFloat(score.toFixed(4)) };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-
-    const top = scored.slice(0, n);
-
-    await log("backend", "info", "service", `top ${n} notifications computed successfully`);
-
-    console.log(`\ntop ${n} priority Notifications\n`);
-    top.forEach((item, i) => {
-      console.log(`${i + 1}. [${item.Type}] ${item.Message}`);
-      console.log(`   Score: ${item.score} | Time: ${item.Timestamp}\n`);
-    });
-
-    return top;
-
-  } catch (err) {
-    await log("backend", "error", "service", `failed to compute priority inbox: ${err.message}`);
-    console.error("error:", err.message);
-  }
-}
 
 getTopNotifications(10);
-code is in notification_app_be/priority.js, output screenshot in notification_app_be/priority_output.png
+code is in notification_app_be/prio.js, output screenshot in notification_app_be/output/priority_output.png
