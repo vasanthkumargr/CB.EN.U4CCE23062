@@ -147,3 +147,20 @@ function process_email_queue():
 ```
 
 this way even if email fails the student still sees the notif in app, and emails get retried automatically.
+
+## Stage 6
+
+priority is decided using a score formula:
+
+  score = weight * (1 / hours_since_posted)
+
+weights assigned:
+- Placement = 3
+- Result = 2  
+- Event = 1
+
+so a placement notif from 1hr ago scores higher than an event from 10mins ago bcz placement is more important overall. recency also matters — older notifs get lower scores automatically.
+
+for keeping top 10 updated as new notifs come in — instead of re-sorting the entire list every time, we can use a min-heap of size n. when a new notif arrives we compute its score and compare with the smallest score in the heap. if its higher we replace the min and re-heapify. this keeps it O(log n) per insertion instead of O(n log n) full sort each time.
+
+code is in notification_app_be/priority.js, output screenshot in notification_app_be/priority_output.png
