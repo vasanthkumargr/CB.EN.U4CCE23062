@@ -1,4 +1,4 @@
-require('dotenv').config(); // reads from logging_middleware/.env
+require('dotenv').config();
 const { log } = require('./index');
 
 console.log("Token loaded:", process.env.AUTH_TOKEN ? "YES" : "NO - TOKEN MISSING");

@@ -1,4 +1,4 @@
-require('dotenv').config(); // no path needed, reads from same folder
+require('dotenv').config();
 const axios = require('axios');
 
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
